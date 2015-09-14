@@ -16,7 +16,7 @@ NSDictionary *dict = @{
 						}
 ```
 
-目标是拿到字典里的值对`User`模型进行赋值.模型的`属性`对应字典的`键`.
+目标是拿到字典里的`值(value)`对`User`模型进行赋值.模型的`属性名`对应字典的`键(key)`.
 
 ``` objective-c
 typedef enum {
@@ -69,7 +69,7 @@ typedef enum {
 
 > 遍历模型中的`属性`,然后拿到`属性名`作为`键值`去字典中寻找`值`.
 
-伪代码:
+方法伪代码:
 
 ``` objective-c
 [模型类 遍历属性的方法];
@@ -155,22 +155,22 @@ NSArray *propertyArray = [User properties];
 
 ![](http://upload-images.jianshu.io/upload_images/651640-240c90352885fb9c.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
-从输出中可以看到该结构体的`name`成员表示成员属性的名字,`attributes`表示成员属性中的一些信息(如是什么类,原子性还是非原子性,是strong还是weak还是copy,生成的成员变量名等信息)...
+从输出中可以看到该结构体的`name`成员表示成员属性的名字,`attributes`表示成员属性中的一些特性(如是什么类,原子性还是非原子性,是strong还是weak还是copy,生成的成员变量名等信息)...
 
 从苹果的[官方文档(Objective-C Runtime Programming Guide)](https://developer.apple.com/library/ios/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtPropertyIntrospection.html)可以得知,`attributes`是一个类型编码字符串.可以使用`property_getAttributes `函数获得这个类型编码字符串.这个字符串以`T`作为开始,接上`@encode`类型编码和一个逗号,以`V`接上实例变量名作为结尾,在它们之间是一些其他信息,以逗号分割.具体内容可以看官方文档中详细的表格.
 
 
 
-在实际赋值过程中,我们并不用关心该属性的内存管理语义,生成的成员变量名,或者其他什么信息.在`attributes`中,只需要知道它所属的`类`或者`类型`,即`T`至`第一个逗号之前`中间的内容,如果是类的话还需要将`@"`和`"`去掉.
+在实际赋值过程中,我们并不用关心该属性的内存管理语义,生成的成员变量名,或者其他什么信息.在`attributes`中,只需要知道它所属的`类`或者是什么`基本数据类型`,即`T`至`第一个逗号之前`中间的内容,如果是`类`的话还需要将`@"`和`"`去掉.
 
-实际上,框架提供的运行时库已经给我们提供获取`成员属性名字`和`成员属性的属性们`的函数了.
+实际上,框架提供的运行时库已经给我们提供获取`属性名`和`属性特性`的函数了.通过下面方式也能打印出相同结果.
 
 ``` objective-c
 NSLog(@"name:%s---attributes:%s",property_getName(property),
       							 property_getAttributes(property));
 ```
 
-从源码中可以看到这两个函数的内部是这样写的:
+从`runtime`源码中可以看到这两个函数的内部是这样实现的:
 
 ``` objective-c
 const char *property_getName(objc_property_t prop)
@@ -188,15 +188,16 @@ const char *property_getAttributes(objc_property_t prop)
 
 **再回顾前面说的思路,这时会更清晰:**
 
-**1.拿到模型的属性名(注意属性名和成员变量名的区别),和对应的类或类型**.
+**1.拿到模型的属性名(注意属性名和成员变量名的区别),和对应的数据类型**.
 
 **2.用该属性名作为键去字典中寻找对应的值.**
 
-**3.拿到值后将值转换为属性对应的类或类型.**
+**3.拿到值后将值转换为属性对应的数据类型.**
 
 **4.赋值.**
 
-现在已经进行到第一步,并且拿到了属性名,但是类或类型还要进一步截取,截取方法如下:
+
+现在已经进行到第一步,并且拿到了`属性名`,但是`数据类型`还要进一步截取,截取方法如下:
 
 ``` objective-c
 for (int i = 0; i < outCount; i++) {
@@ -218,9 +219,12 @@ for (int i = 0; i < outCount; i++) {
 
 ![](http://upload-images.jianshu.io/upload_images/651640-983822a55237d82b.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
+> 该部分源码请看项目实例代码中的<打印类型>
+
+****
 
 
-回归我们拿到这些类型的初衷,是为了是用字典中的`值`类型与模型中要进行赋值的`属性`的类型进行对比,想要对比,需要拿到属性的`class`,因此需要将这些编码转换成一个**表示类型的类**,创建一个类用来包装类型.
+回归我们拿到这些`数据类型`的初衷,是为了是用字典中的`值的类型`与模型中`属性的类型`进行对比,想要对比,需要拿到`属性的类型`,因此需要将这些编码转换成一个**表示类型的类**,创建一个类用来包装类型.
 
 ``` objective-c
 /**
@@ -247,7 +251,7 @@ for (int i = 0; i < outCount; i++) {
 
 OC对象可以通过`Class`来表示类型,而基本数据类型只能用布尔来标识.
 
-把这些名字和类型遍历出来,肯定是为了以后有用,所以需要把它们存起来,由于它们是一个”整体",所以还是设计一个类将他们包装起来比较好.创建一个包装成员属性的类—`MJProperty`.
+把这些名字和类型遍历出来,肯定是为了以后有用,所以需要把它们存起来,由于它们是一个"整体",所以还是设计一个类将他们包装起来比较好.创建一个包装成员属性的类—`MJProperty`.
 
 ``` objective-c
 @interface MJProperty : NSObject
@@ -309,6 +313,8 @@ OC对象可以通过`Class`来表示类型,而基本数据类型只能用布尔�
 ```
 
 重构完成之后,结构显得更加清晰.更有利于接下来的工作.下面继续完成`type`的提取.
+
+> 该部分源码请看项目实例代码中的<重构>
 
 ------
 
@@ -387,6 +393,9 @@ NSString *const MJPropertyTypeId = @"@";
 
 至此,一个`MJProperty`的骨架就大致搭好了.
 
+> 该部分源码请看项目实例代码中的<MJProperty的构建>
+
+****
 
 ![13F73F26-1195-43BC-BC98-FF2641B7DA58.png](http://upload-images.jianshu.io/upload_images/651640-b1dba063f80e8336.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
@@ -435,7 +444,7 @@ NSString *const MJPropertyTypeId = @"@";
  if (!value) continue;
 ```
 
-接下来是第三步:**3.拿到值后将值转换为属性对应的类或类型.**
+接下来是第三步:**3.拿到值后将值的类型转换为属性对应的数据类型.**
 
 首先处理数字类型,如果模型的属性是数字类型,即`type.isNumberType == YES`.如果字典中的值是字符串类型的,需要将其转成`NSNumber`类型.如果本来就是基本数据类型,则不用进行任何转换.
 
@@ -492,7 +501,7 @@ else{
 
 最简单的字典转模型大致完成了,当然,还有很多细节没有完善,但细节总是随着需求的不断变化而不断增加的.
 
-
+> 该部分源码请看项目实例代码中的<简单的字典转模型>
 
 ## JSON字符串 -> 模型
 
@@ -549,7 +558,7 @@ id value = [keyValues valueForKey:property.name];
 }
 ```
 
-
+> 该部分源码请看项目实例代码中的<JSON转模型>
 
 ## 复杂的字典 -> 模型
 
@@ -579,7 +588,7 @@ NSDictionary *dict = @{
 
 
 
-对待这种字典的思路,类似于递归,当碰到模型中的属性类型是一个模型类时,将字典中的`值(Value)`作为字典处理.然后再调用字典转模型的方法返回一个模型类.所以在包装类型时还要有个属性表示它是否是自定义的模型类.判断的方法是看它是否是来自于`Foundation框架`的类.
+对待这种字典的思路,应该想到递归,当碰到模型中的属性类型是一个模型类时,将字典中的`值(Value)`作为字典处理.然后再调用字典转模型的方法返回一个模型类.所以在包装类型时还要有个属性表示它是否是自定义的模型类,才能作为依据继续递归.判断的方法是看它是否是来自于`Foundation框架`的类.
 
 ``` objective-c
 /** 类型是否来自于Foundation框架，比如NSString、NSArray */
@@ -652,7 +661,7 @@ static NSSet *foundationClasses_;
  }
 ```
 
-
+> 该部分源码请看项目实例代码中的<复杂字典转模型>
 
 ## 字典数组 -> 模型
 
@@ -813,6 +822,7 @@ else if ([self.class respondsToSelector:@selector(objectClassInArray)]){
 }
 ```
 
+> 该部分源码请看项目实例代码中的<字典数组转模型>
 ------
 
 ## key的替换
@@ -1013,6 +1023,6 @@ static NSMutableDictionary *cachedTypes_;
 
 ![](http://upload-images.jianshu.io/upload_images/651640-c2de638def5e4fcf.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
-
+> 该部分源码请看项目实例代码中的<key的替换与性能优化>
 
 
